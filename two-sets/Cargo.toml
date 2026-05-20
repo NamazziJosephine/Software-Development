@@ -1,0 +1,22 @@
+[package]
+name = "two-sets"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+[[bin]]
+name = "recursive"
+path = "src/bin/recursive.rs"
+
+[[bin]]
+name = "iterative"
+path = "src/bin/iterative.rs"
+
+# Criterion is a dev-dependency — only used for benchmarking, not in your final binary
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# This tells Cargo where to find the benchmark file
+[[bench]]
+name = "two_sets_bench"
+harness = false
