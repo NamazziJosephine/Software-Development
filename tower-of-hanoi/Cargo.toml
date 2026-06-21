@@ -1,0 +1,30 @@
+[package]
+name = "tower-of-hanoi"
+version = "0.1.0"
+edition = "2024"
+
+# The shared algorithm code is a library crate named `hanoi`, which is why the
+# binaries, the benchmark, and the example all write `use hanoi::...`.
+[lib]
+name = "hanoi"
+path = "src/lib.rs"
+ 
+[[bin]]
+name = "recursive"
+path = "src/bin/recursive.rs"
+ 
+[[bin]]
+name = "iterative"
+path = "src/bin/iterative.rs"
+ 
+[dev-dependencies]
+criterion = "0.5"
+ 
+[[bench]]
+name = "hanoi_bench"
+harness = false
+path = "benches/hanoi_bench.rs"
+ 
+[profile.release]
+opt-level = 3
+lto = true
