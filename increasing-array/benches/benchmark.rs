@@ -1,82 +1,71 @@
+//! Benchmark: in-place greedy vs prefix-maximum auxiliary array.
+//!
+//! No library is used, so this file keeps its own copies of the two algorithms
+//! as pure functions. They are identical in logic to the src/bin/ solutions.
+//!
+//! "Each test case" here means a range of array sizes (1e3 .. 2e5, the CSES
+//! maximum). The same deterministic pseudo-random input is fed to both
+//! algorithms at each size so the comparison is fair.
+
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
-// we can't import directly from bin/ in Rust, so we just copy the two
-// algorithm functions here — this is completely normal for benchmarks
-
-fn iterative(a: &mut Vec<i64>) -> i64 {
-    let mut moves: i64 = 0;
-    for i in 1..a.len() {
-        if a[i] < a[i - 1] {
-            moves += a[i - 1] - a[i];
-            a[i] = a[i - 1];
+/// Algorithm A — in-place greedy, O(1) extra space.
+fn solve_inplace(a: &[i64]) -> i64 {
+    let mut moves = 0i64;
+    let mut prev = a[0];
+    for &x in &a[1..] {
+        if x < prev {
+            moves += prev - x;
+        } else {
+            prev = x;
         }
     }
     moves
 }
 
-fn recursive(a: &mut Vec<i64>, i: usize) -> i64 {
-    if i == 0 {
-        return 0;
+/// Algorithm B — prefix-maximum auxiliary array, O(n) extra space.
+fn solve_prefix_max(a: &[i64]) -> i64 {
+    let n = a.len();
+    let mut pmax = Vec::with_capacity(n);
+    let mut running = i64::MIN;
+    for &x in a {
+        running = running.max(x);
+        pmax.push(running);
     }
-    let moves = recursive(a, i - 1);
-    if a[i] < a[i - 1] {
-        let diff = a[i - 1] - a[i];
-        a[i] = a[i - 1];
-        moves + diff
-    } else {
-        moves
+    let mut moves = 0i64;
+    for i in 0..n {
+        moves += pmax[i] - a[i];
     }
+    moves
 }
 
-// worst case = fully decreasing array e.g. [n, n-1, n-2, ..., 1]
-// every single element needs fixing, so both algorithms do maximum work
-// this is the fairest way to stress test and compare them
-fn make_worst_case(n: usize) -> Vec<i64> {
-    (0..n).map(|i| (n - i) as i64).collect()
+/// Deterministic pseudo-random array (xorshift) so runs are reproducible.
+/// Values land in [1, 1e9] to mimic the CSES constraints.
+fn make_input(n: usize) -> Vec<i64> {
+    let mut state: u64 = 0x9E3779B97F4A7C15;
+    (0..n)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % 1_000_000_000) as i64 + 1
+        })
+        .collect()
 }
 
-fn bench_algorithms(c: &mut Criterion) {
-    // test at multiple sizes so we can see how each algorithm scales —
-    // an algorithm that's fast at n=100 might fall apart at n=10_000
-    let sizes = [100, 1_000, 10_000];
-
-    // a benchmark group lets criterion print them side by side
-    // and generate a combined comparison graph in the HTML report
+fn bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("increasing_array");
-
-    for &n in &sizes {
-        // BenchmarkId just gives each run a nice label like "iterative/100"
-        // so we can tell them apart in the output
-        group.bench_with_input(BenchmarkId::new("iterative", n), &n, |b, &n| {
-            b.iter(|| {
-                let mut data = make_worst_case(n);
-                // black_box stops the compiler from being "too clever" —
-                // without it, the compiler might notice we never use the result
-                // and optimize the entire call away, giving us fake 0ns timings
-                iterative(black_box(&mut data))
-            });
+    for &n in &[1_000usize, 10_000, 100_000, 200_000] {
+        let input = make_input(n);
+        group.bench_with_input(BenchmarkId::new("inplace", n), &input, |b, inp| {
+            b.iter(|| solve_inplace(black_box(inp)))
         });
-
-        // we cap recursive at 10_000 because beyond that the call stack
-        // gets too deep and the program crashes with a stack overflow —
-        // which is exactly why we'd never submit the recursive version to a judge
-        if n <= 10_000 {
-            group.bench_with_input(BenchmarkId::new("recursive", n), &n, |b, &n| {
-                b.iter(|| {
-                    let mut data = make_worst_case(n);
-                    let last = data.len() - 1;
-                    recursive(black_box(&mut data), last)
-                });
-            });
-        }
+        group.bench_with_input(BenchmarkId::new("prefix_max", n), &input, |b, inp| {
+            b.iter(|| solve_prefix_max(black_box(inp)))
+        });
     }
-
-    // always call finish() at the end — it flushes the results and
-    // triggers the HTML report generation under target/criterion/
     group.finish();
 }
 
-// these two macros are criterion's way of wiring everything together —
-// criterion_group bundles our functions, criterion_main makes it a runnable binary
-criterion_group!(benches, bench_algorithms);
+criterion_group!(benches, bench);
 criterion_main!(benches);
