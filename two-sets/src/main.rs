@@ -1,39 +1,72 @@
-use std::io::{Write, BufWriter};
+//! Binary entry point for the "Two Sets" deliverable.
+//!
+//! Reads the integer n from stdin and prints the CSES-format answer. Which
+//! algorithm runs is chosen by an optional argument (default: modular):
+//!
+//!   echo 7 | cargo run --release -- greedy
+//!   echo 7 | cargo run --release -- modular
+//!
+//! The two algorithms are imported through the library crate (lib.rs), which
+//! is exactly the structure the brief asks for.
 
-// Recursively assign numbers from `cur` down to 1 into two sets.
-// `rem` tracks how much sum is still needed for set A.
-// If the current number fits, it goes to A; otherwise to B.
-fn solve(cur: i64, rem: i64, a: &mut Vec<i64>, b: &mut Vec<i64>) {
-    if cur == 0 { return; }
-    if rem >= cur { a.push(cur); solve(cur - 1, rem - cur, a, b); }
-    else          { b.push(cur); solve(cur - 1, rem, a, b); }
-}
+use std::io::{self, Read, Write};
+use two_sets::{greedy, modular};
 
 fn main() {
+    // ---- pick the algorithm from the first CLI argument ----
+    let which = std::env::args().nth(1).unwrap_or_else(|| "modular".to_string());
+    let solver: fn(u32) -> Option<(Vec<u32>, Vec<u32>)> = match which.as_str() {
+        "greedy" => greedy::partition,
+        "modular" => modular::partition,
+        other => {
+            eprintln!("unknown algorithm '{other}', use 'greedy' or 'modular'");
+            std::process::exit(1);
+        }
+    };
+
+    // ---- read n ----
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-    let n: i64 = input.trim().parse().unwrap();
+    io::stdin().read_to_string(&mut input).unwrap();
+    let n: u32 = input.trim().parse().expect("expected a single integer n");
 
-    // A split into two equal-sum sets is only possible if the total is even.
-    // The total sum 1+2+...+n = n*(n+1)/2, which is even when n % 4 == 0 or n % 4 == 3.
-    let total = n * (n + 1) / 2;
-    let mut out = BufWriter::new(std::io::stdout().lock());
-
-    if total % 2 != 0 { writeln!(out, "NO").ok(); return; }
-
-    let (mut a, mut b) = (vec![], vec![]);
-
-    // The default stack is ~8 MB, which overflows at recursion depth n = 10^6.
-    // Spawning a thread with a larger stack is the standard Rust workaround.
-    let (a, b) = std::thread::Builder::new()
-        .stack_size(256 * 1024 * 1024)
-        .spawn(move || { solve(n, total / 2, &mut a, &mut b); (a, b) })
-        .unwrap().join().unwrap();
-
-    writeln!(out, "YES").ok();
-    // Print both sets in the required format: count on one line, elements on the next.
-    for set in [&a, &b] {
-        writeln!(out, "{}", set.len()).ok();
-        writeln!(out, "{}", set.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" ")).ok();
+    // ---- solve and print (buffered; one write_all) ----
+    let mut out: Vec<u8> = Vec::with_capacity(8 * 1024 * 1024);
+    match solver(n) {
+        None => out.extend_from_slice(b"NO\n"),
+        Some((a, b)) => {
+            out.extend_from_slice(b"YES\n");
+            write_set(&mut out, &a);
+            write_set(&mut out, &b);
+        }
     }
+    io::stdout().write_all(&out).unwrap();
+}
+
+/// Write one set as CSES expects: a count line, then the elements.
+fn write_set(out: &mut Vec<u8>, set: &[u32]) {
+    push_u32(out, set.len() as u32);
+    out.push(b'\n');
+    for (idx, &x) in set.iter().enumerate() {
+        if idx > 0 {
+            out.push(b' ');
+        }
+        push_u32(out, x);
+    }
+    out.push(b'\n');
+}
+
+/// Manual itoa: append the decimal digits of `x` (fast for ~10^6 numbers).
+fn push_u32(out: &mut Vec<u8>, mut x: u32) {
+    if x == 0 {
+        out.push(b'0');
+        return;
+    }
+    let mut tmp = [0u8; 10];
+    let mut i = tmp.len();
+    while x > 0 {
+        i -= 1;
+        tmp[i] = b'0' + (x % 10) as u8;
+        x /= 10;
+    }
+    out.extend_from_slice(&tmp[i..]);
 }
