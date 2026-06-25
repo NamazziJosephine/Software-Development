@@ -3,9 +3,21 @@ name = "counting-rooms"
 version = "0.1.0"
 edition = "2024"
 
+# src/bfs.rs, src/dfs.rs, src/union_find.rs hold the three algorithms; src/lib.rs
+# exposes them (and the shared Grid) as modules; src/main.rs imports them via the
+# library and runs one. The cses/ folder (outside the cargo build) holds
+# flattened single-file copies for the CSES judge.
+ 
 [dependencies]
+ 
+[dev-dependencies]
 criterion = "0.5"
-
+ 
 [[bench]]
-name = "counting-rooms_bench"
+name = "counting_rooms"
 harness = false
+ 
+[profile.bench]
+opt-level = 3
+lto = true
+ 

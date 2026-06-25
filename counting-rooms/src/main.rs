@@ -1,51 +1,54 @@
-use std::io::{self, BufRead};
+//! Binary entry point for the "Counting Rooms" deliverable.
+//!
+//! Reads the map from stdin and prints the number of rooms. The algorithm is
+//! chosen by an optional argument (default: dfs):
+//!
+//!   cargo run --release -- bfs        < input.txt
+//!   cargo run --release -- dfs        < input.txt
+//!   cargo run --release -- union_find < input.txt
+//!
+//! All three algorithms are imported through the library crate (lib.rs).
 
-// Visits every floor square connected to (row, col) by calling itself on each neighbour.
-// Each call handles one cell, then triggers a new call for every unvisited neighbour —
-// this is what makes it recursive.
-// WARNING: on very large grids this can crash with a stack overflow (use iterative instead).
-fn flood_fill(grid: &mut Vec<Vec<char>>, row: usize, col: usize, n: usize, m: usize) {
-    grid[row][col] = '#'; // mark as visited so this cell is never entered again
-
-    // Check all 4 neighbours: up, down, left, right
-    // i32 is used so that subtraction can go negative without underflowing
-    for (dr, dc) in [(-1i32, 0), (1, 0), (0, -1i32), (0, 1)] {
-        let nr = row as i32 + dr;
-        let nc = col as i32 + dc;
-
-        // Skip neighbours that fall outside the grid
-        if nr >= 0 && nr < n as i32 && nc >= 0 && nc < m as i32 {
-            let (nr, nc) = (nr as usize, nc as usize);
-            if grid[nr][nc] == '.' {
-                flood_fill(grid, nr, nc, n, m); // recurse into this unvisited neighbour
-            }
-        }
-    }
-}
+use std::io::{self, Read, Write};
+use counting_rooms::{bfs, dfs, union_find, Grid};
 
 fn main() {
-    let stdin = io::stdin();
-    let mut lines = stdin.lock().lines();
+    // ---- pick the algorithm from the first CLI argument ----
+    let which = std::env::args().nth(1).unwrap_or_else(|| "dfs".to_string());
+    let solver: fn(&Grid) -> u32 = match which.as_str() {
+        "bfs" => bfs::count_rooms,
+        "dfs" => dfs::count_rooms,
+        "union_find" | "uf" => union_find::count_rooms,
+        other => {
+            eprintln!("unknown algorithm '{other}', use 'bfs', 'dfs', or 'union_find'");
+            std::process::exit(1);
+        }
+    };
 
-    let first = lines.next().unwrap().unwrap();
-    let mut it = first.split_whitespace();
-    let n: usize = it.next().unwrap().parse().unwrap(); // rows
-    let m: usize = it.next().unwrap().parse().unwrap(); // cols
+    // ---- read all input ----
+    let mut input = String::new();
+    io::stdin().read_to_string(&mut input).unwrap();
+    let mut lines = input.lines();
 
-    let mut grid: Vec<Vec<char>> = (0..n)
-        .map(|_| lines.next().unwrap().unwrap().chars().collect())
-        .collect();
+    // first line: n and m
+    let mut header = lines.next().unwrap().split_ascii_whitespace();
+    let n: usize = header.next().unwrap().parse().unwrap();
+    let m: usize = header.next().unwrap().parse().unwrap();
 
-    let mut rooms = 0;
+    // next n lines: the map. Floor iff the byte is '.'.
+    let mut floor = vec![false; n * m];
     for r in 0..n {
+        let row = lines.next().unwrap_or("").as_bytes();
         for c in 0..m {
-            // Every unvisited '.' is the entry point of a room we have not seen yet
-            if grid[r][c] == '.' {
-                rooms += 1;
-                flood_fill(&mut grid, r, c, n, m);
-            }
+            floor[r * m + c] = row.get(c) == Some(&b'.');
         }
     }
 
-    println!("{}", rooms);
+    let grid = Grid::new(n, m, floor);
+    let rooms = solver(&grid);
+
+    let mut out = Vec::with_capacity(16);
+    out.extend_from_slice(rooms.to_string().as_bytes());
+    out.push(b'\n');
+    io::stdout().write_all(&out).unwrap();
 }
