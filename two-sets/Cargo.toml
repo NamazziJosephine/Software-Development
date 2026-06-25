@@ -3,20 +3,20 @@ name = "two-sets"
 version = "0.1.0"
 edition = "2024"
 
+# src/greedy.rs and src/modular.rs hold the two algorithms; src/lib.rs exposes
+# them as modules; src/main.rs imports them via the library and runs one.
+# The cses/ folder (outside the cargo build) holds flattened single-file copies
+# for the CSES judge, which accepts only one self-contained source file.
+ 
 [dependencies]
-[[bin]]
-name = "recursive"
-path = "src/bin/recursive.rs"
-
-[[bin]]
-name = "iterative"
-path = "src/bin/iterative.rs"
-
-# Criterion is a dev-dependency — only used for benchmarking, not in your final binary
+ 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-
-# This tells Cargo where to find the benchmark file
+criterion = "0.5"
+ 
 [[bench]]
-name = "two_sets_bench"
+name = "two_sets"
 harness = false
+ 
+[profile.bench]
+opt-level = 3
+lto = true
