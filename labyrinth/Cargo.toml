@@ -1,0 +1,23 @@
+[package]
+name = "labyrinth"
+version = "0.1.0"
+edition = "2024"
+
+# src/bfs.rs and src/astar.rs hold the two algorithms; src/lib.rs exposes them
+# as modules (with the shared Maze type); src/main.rs imports them via the
+# library and runs one. The cses/ folder (outside the cargo build) holds
+# flattened single-file copies for the CSES judge.
+ 
+[dependencies]
+ 
+[dev-dependencies]
+criterion = "0.5"
+ 
+[[bench]]
+name = "labyrinth"
+harness = false
+ 
+[profile.bench]
+opt-level = 3
+lto = true
+
