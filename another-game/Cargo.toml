@@ -3,4 +3,20 @@ name = "another-game"
 version = "0.1.0"
 edition = "2024"
 
+# src/parity.rs and src/heap.rs hold the two algorithms; src/lib.rs exposes them
+# (and the Winner type) as modules; src/main.rs imports them via the library and
+# runs one. The cses/ folder (outside the cargo build) holds flattened
+# single-file copies for the CSES judge (both algorithms are Accepted).
+ 
 [dependencies]
+ 
+[dev-dependencies]
+criterion = "0.5"
+ 
+[[bench]]
+name = "another_game"
+harness = false
+ 
+[profile.bench]
+opt-level = 3
+lto = true
